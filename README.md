@@ -2,7 +2,8 @@
 
 ## 2020-10-27 parse json file/ Sijia Fang
 `ParseData.ipynb` provide python code to parse json file.
-To run the code, first download `out.json` and put it in this directory.
+To run the code, first download SemanticScholar json file  and put it in this directory.
+`out.json` in this code is just a small example. 
 Four txt files will be created:
  
 
