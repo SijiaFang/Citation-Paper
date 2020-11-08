@@ -1,0 +1,175 @@
+---
+title: "Data Sampling by applying vsp on Journal Citation Network"
+author: "Sijia Fang"
+date: "11/5/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+## Introduction
+
+When people want to learn a new technique, or understand a new field, searching is the most common way to do it. However, this process can be extremely irritating. There could be tremendous amounts of paper related to that techinque, describing how to apply or improve it under centain cases. It's hard to understand these papers before a basic knowledge of the histroy about this techinque. 
+
+This project aims to provide a way to analyse the developing process of certain statistical techinques. When a key words such as **lasso** is provided, a summary for it will be produced, including how it was proposed in the first place and when it became widely applied in different field. 
+
+
+To attain this goal, we study [**Semantic Scholar Data**](http://s2-public-api-prod.us-west-2.elasticbeanstalk.com/corpus/). This is a large data set containing 220 million papers from all fields. To study the developing process of statistical techinques, the first step is sampling: we need to focus on mainstream academic journals that develope statistical algorithms or apply them. 
+
+This blog post illustrates how to acheive the sampling process via [**vsp**](https://arxiv.org/pdf/2004.05387.pdf) algorithm.
+
+
+## Data
+
+(adj matrix A_{ij}=1 if i cite j)
+
+Semantic scholar dataset provides directed network $G_{paper} = (V_{paper},E_{paper})$ with every node $i$ in $V_{paper}$ represents a paper and $(i,j)\in E_{paper}$ if paper $i$ cite paper $j$. $G_p$ is extremely large and thus studying it directly is impractical. Luckily, $G_p$ is also sparse and can be aggregated as a weighted directed network $G_{journal} = (V_{journal},E_{journal})$ with every node $i$ in $V_{journal}$ represents a journal. $(i,j)\in E_{journal}$ if there exist paper in journal $i$ that cites paper in journal $j$, and $(i,j)$ is weighted by the number of citation from journal $i$ to journal $j$. $G_{journal}$ is still sparse but with moderate size, it contains approximately 100 thousand nodes. Notice that $G_{paper}$ contains 220 million nodes. 
+
+Our data is the adjacency matrix from $G_{journal}$. Our goal is to select top journals in statistics and other fields that frequently apply statistical tools. 
+
+## Method
+
+**vsp** is designed to find underlying structures, it fits in many scenarios and here we focus on it's application in Stochastic co-Blockmodel. As $A\approx ZBY^t$, $Y$ and $Z$ record two types of block membership, $B_{ij}$ represents how likely an edge from row-block $i$ to column-block $j$ will exist. Regrading the citation adjacency matrix, $Z$ gives a partition of journals based on how they cite others while $Y$ gives a partition of journals based on how they are cited by others. We will call them citing clusters and cited clusters in the following analysis. $B$ matrix reveals the citation pattern among groups.
+
+## Result
+
+1.  load the data as a sparse matrix and do some pre-processing.
+```{r message=FALSE, warning=FALSE}
+library(Matrix)
+library(vsp)
+library(dplyr)
+library(plotrix)
+library(tidyverse)
+library(tidytext)
+library(tm)
+
+# read data
+edge <- read.csv("journalEdgeList.csv")
+name <- read.csv("journalNames4EdgeList.csv")
+name$y <- name$x
+
+# create sparse adjancy matrix
+Adj <- sparseMatrix(i = edge$from, j = edge$to, x = edge$weight, 
+                    dims = rep(dim(name)[1],2), dimnames = name)
+
+# deal with repeated journal names
+journal = str_replace_all(tolower(removePunctuation(rownames(Adj))), "[\r\n]" , " LineBreak ")
+compress = sparse.model.matrix(~journal-1)
+A = t(compress)%*%Adj%*%compress
+A@x=sqrt(A@x)
+rownames(A) <- sub("journal","",rownames(A))
+colnames(A) <- sub("journal","",colnames(A))
+uniqueJournals = rownames(A)
+```
+
+2. Simple analysis based on indegree and outdegree of nodes
+```{r}
+# indegree
+indegree <- colSums(A)
+names(sort(indegree, decreasing = T)[1:10])
+```
+The top ten journals being cited are listed above, and they are all well known journals. 
+
+```{r}
+# outdegree
+outdegree <- rowSums(A)
+names(sort(outdegree, decreasing = T)[1:10])
+```
+
+The top ten journals that cite others are more interesting. Actually, "arxiv" and "biorxiv" are not even journals, but they are sources for lots of papers, so it is not suprising that they cite others a lot. 
+
+3. Apply vsp to do anlysis
+```{r}
+fa =  vsp(A, rank = 50)
+```
+
+3.1 Clusters of statistics journals in both citing clusters and cited clusters.
+```{r}
+apply(fa$Y,2, function(x) uniqueJournals[order(-x)[1:20]])[,37]
+apply(fa$Z,2, function(x) uniqueJournals[order(-x)[1:20]])[,37]
+```
+
+3.2 Observe $B$ matrix to see relationships between clusters
+
+Statistics clusters in both citing clusters and cited clusters are the 37th, so we focus on 37th column and 37th row.
+
+There is a strong diagonal pattern, indicating that if an edge comes from a node in sending block u, then it probably goes to a node in receiving block u.
+
+If we focus on statistics block, it is clearly strongly connected to itself, but there are also other blocks that cites it or being cited by it. 
+```{r}
+B <- as.matrix(fa$B)
+range(B)
+B1 <- matrix(-1.299*10^(-6),50,50)
+B1[,37] <- B[,37]
+B1[37,] <- B[37,]
+color2D.matplot(B, cs1=c(1,0),cs2=c(1,0),cs3=c(1,0))
+color2D.matplot(B1, cs1=c(1,0),cs2=c(1,0),cs3=c(1,0))
+```
+
+
+Coefficient are ranked and ploted without the first one, since the first one is way larger than the others.
+
+For cited cluster, it's clear that we should choose the first 6 clusters, for citing cluster, we could choose the first 4 or 6 clusters. Since we choose 6 clusters for cired cluster and it won't harm to sample more data, we also choose the first 6 clusters for citing cluster.
+
+```{r}
+CiteStat <- sort(fa$B[,37], decreasing = T)
+StatCite <- sort(fa$B[37,], decreasing = T)
+par(mfrow = c(1,2))
+plot(CiteStat[-1], ylab = '', main = 'Citing Cluster') # first 7 (including itself)
+plot(StatCite[-1], ylab = '', main = 'Cited Cluster') # first 7 (including itself)
+CiteStatSample <- CiteStat[2:7] 
+StatCiteSample <- StatCite[2:7]
+```
+
+Now let's find out the topics (like statistics for the 37th cluster) of these clusters and top journals in them.
+
+We use [bff](https://github.com/RoheLab/vsp/blob/master/R/bff.R) to extract best feature of these functions
+
+**need some analysis here, but my writing skill sucks**
+
+In short, statistical journals are highly connected with journals in math, computer science and economics. Now we can get a list of journal names and sample papers based on them.
+
+```{r}
+CiteStatIndex <- as.numeric(sub("z","",names(CiteStatSample)))
+StatCiteIndex <- as.numeric(sub("y","",names(StatCiteSample)))
+text_df <- tibble(id = 1:length(uniqueJournals), 
+                  text = uniqueJournals)
+# this does a lot of processing! 
+#  to lower, remove @ # , . 
+#  often these make sense on a first cut.
+#  worth revisiting before "final results"!
+tt  = text_df %>% unnest_tokens(word, text)
+dt = cast_sparse(tt, id, word)
+cs = colSums(dt)
+dt = dt[,cs>3]
+# bff is the "best feature function"
+#  it is my favorite way to contextualize clusters.  
+bff(fa$Z, dt,10)[,CiteStatIndex]
+bff(fa$Y, dt,10)[,StatCiteIndex]
+```
+
+
+## code to get journal list
+```{r}
+# n is the number of journals we want in each clusters
+n = 50
+Jname <- as.vector(apply(fa$Z,2, function(x) uniqueJournals[order(-x)[1:n]])[,c(37,CiteStatIndex)])
+Jname <- c(Jname,as.vector(apply(fa$Y,2, function(x) uniqueJournals[order(-x)[1:n]])[,c(37,StatCiteIndex)]))
+Jname <- unique(Jname)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
