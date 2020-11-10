@@ -9,14 +9,14 @@ output:
 
 ## Introduction
 
-When people want to learn a new technique, or understand a new field, searching is the most common way to do it. However, this process can be extremely irritating. There could be tremendous amounts of paper related to that techinque, describing how to apply or improve it under centain cases. It's hard to understand these papers before a basic knowledge of the histroy about this techinque. 
+When people want to learn a new technique, or understand a new field, looking for related references is a very common way to do it. However, this process can be extremely irritating. There could be tremendous amounts of paper related to that techinque, describing how to apply or improve it under centain circumstances. It's hard to understand these papers without the basic knowledge of the histroy about this techinque. 
 
-This project aims to provide a way to analyse the developing process of certain statistical techinques. When a key words such as **lasso** is provided, a summary for it will be produced, including how it was proposed in the first place and when it became widely applied in different field. 
+This project aims to provide a way to analyze the developing process of certain statistical techinques. When a key word such as **lasso** is provided, a summary for it will be produced, including how it was proposed in the first place and when it became widely applied in different fields. 
 
 
-To attain this goal, we study [**Semantic Scholar Data**](http://s2-public-api-prod.us-west-2.elasticbeanstalk.com/corpus/). This is a large data set containing 220 million papers from all fields. To study the developing process of statistical techinques, the first step is sampling: we need to focus on mainstream academic journals that develope statistical algorithms or apply them. 
+To attain this goal, we study [**Semantic Scholar Data**](http://s2-public-api-prod.us-west-2.elasticbeanstalk.com/corpus/). This is a large data set containing 220 million papers from various fields. To study the developing process of statistical techinques, the first step is filtering: we need to focus on mainstream academic journals that develope statistical methods or apply them. 
 
-This blog post illustrates how to acheive the sampling process via [**vsp**](https://arxiv.org/pdf/2004.05387.pdf) algorithm.
+This blog post illustrates how to acheive the filterling process via [**vsp**](https://arxiv.org/pdf/2004.05387.pdf) algorithm.
 
 
 ## Data
@@ -33,7 +33,7 @@ Our data is the adjacency matrix from $G_{journal}$. Our goal is to select top j
 
 ## Result
 
-1.  load the data as a sparse matrix and do some pre-processing.
+### 1.  Load the data and preprocessing
 ```{r message=FALSE, warning=FALSE}
 library(Matrix)
 library(vsp)
@@ -62,13 +62,13 @@ colnames(A) <- sub("journal","",colnames(A))
 uniqueJournals = rownames(A)
 ```
 
-2. Simple analysis based on indegree and outdegree of nodes
+### 2. Simple analysis on indegree and outdegree
 ```{r}
 # indegree
 indegree <- colSums(A)
 names(sort(indegree, decreasing = T)[1:10])
 ```
-The top ten journals being cited are listed above, and they are all well known journals. 
+The top ten journals being cited are listed above, and they are all well-known journals in their fields. 
 
 ```{r}
 # outdegree
@@ -76,24 +76,24 @@ outdegree <- rowSums(A)
 names(sort(outdegree, decreasing = T)[1:10])
 ```
 
-The top ten journals that cite others are more interesting. Actually, "arxiv" and "biorxiv" are not even journals, but they are sources for lots of papers, so it is not suprising that they cite others a lot. 
+The top ten journals that cite others most are more interesting. Actually, "arxiv" and "biorxiv" are not even journals, but they are sources for lots of papers, so it is not suprising that they cite others a lot. 
 
-3. Apply vsp to do anlysis
+### 3. Apply vsp to cluster the journals
 ```{r}
-fa =  vsp(A, rank = 50)
+fa =  vsp(A, rank=50)
 ```
 
-3.1 Clusters of statistics journals in both citing clusters and cited clusters.
+- 3.1 Clusters of statistics journals in both citing clusters and cited clusters.
 ```{r}
 apply(fa$Y,2, function(x) uniqueJournals[order(-x)[1:20]])[,37]
 apply(fa$Z,2, function(x) uniqueJournals[order(-x)[1:20]])[,37]
 ```
 
-3.2 Observe $B$ matrix to see relationships between clusters
+- 3.2 Observe $B$ matrix to see relationships between clusters
 
-Statistics clusters in both citing clusters and cited clusters are the 37th, so we focus on 37th column and 37th row.
+The cluster that best represent statistics journal in both citing clusters and cited clusters are the 37th, so we focus on 37th column and 37th row of $B$ matrix.
 
-There is a strong diagonal pattern, indicating that if an edge comes from a node in sending block u, then it probably goes to a node in receiving block u.
+There is a strong diagonal pattern, indicating that if an edge comes from a node in the i-th sending block, then it probably goes to a node in the i-th receiving block.
 
 If we focus on statistics block, it is clearly strongly connected to itself, but there are also other blocks that cites it or being cited by it. 
 ```{r}
@@ -107,9 +107,9 @@ color2D.matplot(B1, cs1=c(1,0),cs2=c(1,0),cs3=c(1,0))
 ```
 
 
-Coefficient are ranked and ploted without the first one, since the first one is way larger than the others.
+Coefficient are ranked and ploted without the first one(statistics cluster itself), since the first one is way larger than the others.
 
-For cited cluster, it's clear that we should choose the first 6 clusters, for citing cluster, we could choose the first 4 or 6 clusters. Since we choose 6 clusters for cired cluster and it won't harm to sample more data, we also choose the first 6 clusters for citing cluster.
+For cited clusters, it's clear that we should look into the first 6 clusters, for citing cluster, we may choose the first 4 or 6 clusters. Since we choose 6 clusters for cited cluster and it doesn't harm to sample more data, we also take a closer look into the first 6 clusters for citing cluster.
 
 ```{r}
 CiteStat <- sort(fa$B[,37], decreasing = T)
@@ -121,13 +121,11 @@ CiteStatSample <- CiteStat[2:7]
 StatCiteSample <- StatCite[2:7]
 ```
 
-Now let's find out the topics (like statistics for the 37th cluster) of these clusters and top journals in them.
+Now let's find out the topics (like statistics for the 37th cluster) of these clusters and top journals in them. Here We use [bff](https://github.com/RoheLab/vsp/blob/master/R/bff.R) to extract best feature of these clusters.
 
-We use [bff](https://github.com/RoheLab/vsp/blob/master/R/bff.R) to extract best feature of these functions
+Best feature function will highlight words (tokens) in journal names that can best describe this cluster. 
 
-**need some analysis here, but my writing skill sucks**
-
-In short, statistical journals are highly connected with journals in math, computer science and economics. Now we can get a list of journal names and sample papers based on them.
+According to the results, statistical journals are highly associated with journals in math, computer science and economics. Now we can get a list of journal names and sample papers based on them.
 
 ```{r}
 CiteStatIndex <- as.numeric(sub("z","",names(CiteStatSample)))
@@ -142,17 +140,54 @@ tt  = text_df %>% unnest_tokens(word, text)
 dt = cast_sparse(tt, id, word)
 cs = colSums(dt)
 dt = dt[,cs>3]
-# bff is the "best feature function"
-#  it is my favorite way to contextualize clusters.  
 bff(fa$Z, dt,10)[,CiteStatIndex]
 bff(fa$Y, dt,10)[,StatCiteIndex]
 ```
 
+## Visualization
+Here we provide a visualization for citation relationships between the selected journal groups. Flow between two blocks describes the left cluster citing the right, and the wider flow means more citations. This is an iteractive graph, move the mouse over flows and explore more!
+
+```{r}
+library(tidyverse)
+library(viridis)
+library(patchwork)
+library(hrbrthemes)
+library(circlize)
+library(networkD3)
+data <- as.data.frame(B[c(37,CiteStatIndex), c(37,StatCiteIndex)])
+rownames(data) <- c("statistics","math","operation control and management","economics","combinatorial analysis","signal processing","robotics/AI")
+colnames(data) <- c("statistics","math:algebra","math & physics/pde","economics", "combinatorial analysis","accounting/finance","operation control and management")
+data <- data*10^9
+data_long <- data %>%
+  rownames_to_column %>%
+  gather(key = 'key', value = 'value', -rowname) %>%
+  filter(value > 0)
+colnames(data_long) <- c("source", "target", "value")
+data_long$target <- paste(data_long$target, " ", sep="")
+
+# From these flows we need to create a node data frame: it lists every entities involved in the flow
+nodes <- data.frame(name=c(as.character(data_long$source), as.character(data_long$target)) %>% unique())
+
+# With networkD3, connection must be provided using id, not using real name like in the links dataframe.. So we need to reformat it.
+data_long$IDsource=match(data_long$source, nodes$name)-1 
+data_long$IDtarget=match(data_long$target, nodes$name)-1
+
+# prepare colour scale
+ColourScal ='d3.scaleOrdinal() .range(["#FDE725FF","#B4DE2CFF","#6DCD59FF","#35B779FF","#1F9E89FF","#26828EFF","#31688EFF","#3E4A89FF","#482878FF","#440154FF"])'
+
+# Make the Network
+sankeyNetwork(Links = data_long, Nodes = nodes,
+              Source = "IDsource", Target = "IDtarget",
+              Value = "value", NodeID = "name", 
+              sinksRight=FALSE, colourScale=ColourScal, nodeWidth=40, fontSize=13, nodePadding=20)
+```
 
 ## code to get journal list
+In the following work, we will limit the journal that we study into a smaller range according to the analysis in this post. More specific, we'll only explore the journals that are strongly associated to the statistical journals, namely journals in the selected groups (which citing the statistics cluster and being cited by statistics cluster). We can obtain the journals using the code below.
+
 ```{r}
 # n is the number of journals we want in each clusters
-n = 50
+n = 10
 Jname <- as.vector(apply(fa$Z,2, function(x) uniqueJournals[order(-x)[1:n]])[,c(37,CiteStatIndex)])
 Jname <- c(Jname,as.vector(apply(fa$Y,2, function(x) uniqueJournals[order(-x)[1:n]])[,c(37,StatCiteIndex)]))
 Jname <- unique(Jname)
