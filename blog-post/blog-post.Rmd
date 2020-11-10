@@ -1,6 +1,6 @@
 ---
 title: "Data Sampling by applying vsp on Journal Citation Network"
-author: "Sijia Fang"
+author: "Sijia Fang, Jitian Zhao, Chenghui Li"
 date: "11/5/2020"
 output:
   html_document: default
@@ -8,6 +8,7 @@ output:
 ---
 
 ## Introduction
+
 
 When people want to learn a new technique, or understand a new field, looking for related references is a very common way to do it. However, this process can be extremely irritating. There could be tremendous amounts of paper related to that technique, describing how to apply or improve it under certain circumstances. It's hard to understand these papers without the basic knowledge of the history about this technique. 
 
@@ -17,6 +18,7 @@ This project aims to provide a way to analyze the developing process of certain 
 To attain this goal, we study [**Semantic Scholar Data**](http://s2-public-api-prod.us-west-2.elasticbeanstalk.com/corpus/). This is a large data set containing 220 million papers from various fields. To study the developing process of statistical techniques, the first step is filtering: we need to focus on mainstream academic journals that develop statistical methods or apply them. 
 
 This blog post illustrates how to achieve the filtering process via [**vsp**](https://arxiv.org/pdf/2004.05387.pdf) algorithm.
+
 
 
 ## Data
@@ -75,7 +77,9 @@ outdegree <- rowSums(A)
 names(sort(outdegree, decreasing = T)[1:10])
 ```
 
+
 The top ten journals that cite others most are more interesting. Actually, "arxiv" and "biorxiv" are not even journals, but they are sources for lots of papers, so it is not surprising that they cite others a lot. 
+
 
 ### 3. Apply vsp to cluster the journals
 ```{r}
@@ -144,6 +148,7 @@ bff(fa$Y, dt,10)[,StatCiteIndex]
 ```
 
 ## Visualization
+
 Here we provide a visualization for citation relationships between the selected journal groups. Flow between two blocks describes the left cluster citing the right, and the wider flow means more citations. This is an interactive graph, move the mouse over flows and explore more!
 
 ```{r message=FALSE, warning=FALSE}
